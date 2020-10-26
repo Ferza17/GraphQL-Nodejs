@@ -10,6 +10,7 @@ const multer = require("multer");
 require("dotenv/config");
 // For Windows User
 const { uuidv4 } = require("uuid");
+const { graphqlHTTP } = require("express-graphql");
 /**
  * ========= End Packages ==============
  */
@@ -17,6 +18,11 @@ const { uuidv4 } = require("uuid");
  * ========= Global Variable ==============
  */
 const app = express();
+
+// Graphql Schema
+const graphqlSchema = require("./graphql/schema");
+const grahpqlResolver = require("./graphql/resolvers");
+
 /**
  * ========= Global Variable ==============
  */
@@ -41,14 +47,6 @@ const filter = (req, file, cb) => {
   }
 };
 /**
- * ========= Routes ==============
- */
-const feedRoutes = require("./routes/feed");
-const userRoutes = require("./routes/user");
-/**
- * ========= End Routes ==============
- */
-/**
  * ========= Initialize  ==============
  */
 app.use(bodyParser.json());
@@ -58,9 +56,17 @@ app.use(
     fileFilter: filter,
   }).single("image")
 );
-app.use("/user", userRoutes);
-app.use("/feed", feedRoutes);
+
 app.use("/images", express.static(path.join(__dirname, "images")));
+
+// Graphql
+app.use(
+  "/graphql",
+  graphqlHTTP({
+    schema: graphqlSchema,
+    rootValue: grahpqlResolver,
+  })
+);
 
 app.use((error, req, res, next) => {
   console.log("error :>> ", error);
@@ -78,11 +84,7 @@ app.use((error, req, res, next) => {
 mongoose
   .connect(process.env.MONGODB_URL)
   .then((result) => {
-    const server = http.createServer(app).listen(process.env.PORT);
-    const io = require("./socket").init(server);
-    io.on("connection", (socket) => {
-      console.log("Client Connected! ");
-    });
+    http.createServer(app).listen(process.env.PORT);
   })
   .catch((err) => {
     console.log("err :>> ", err);
