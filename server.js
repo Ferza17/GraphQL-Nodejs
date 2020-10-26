@@ -15,6 +15,20 @@ const { graphqlHTTP } = require("express-graphql");
  * ========= End Packages ==============
  */
 /**
+ * ========= Middleware ==============
+ */
+const auth = require("./middleware/auth");
+/**
+ * ========= End Middleware ==============
+ */
+/**
+ * ========= Util ==============
+ */
+const { clearImage } = require("./util/file");
+/**
+ * ========= End Util ==============
+ */
+/**
  * ========= Global Variable ==============
  */
 const app = express();
@@ -47,6 +61,9 @@ const filter = (req, file, cb) => {
   }
 };
 /**
+ * ========= End Global Variable ==============
+ */
+/**
  * ========= Initialize  ==============
  */
 app.use(bodyParser.json());
@@ -59,6 +76,44 @@ app.use(
 
 app.use("/images", express.static(path.join(__dirname, "images")));
 
+// Setting CORS Headers and Graphql
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "OPTIONS, GET, POST, PUT, PATCH, DELETE"
+  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.put("/post-image", (req, res, next) => {
+  if (!req.isAuth) {
+    const error = new Error("Not Authorized!");
+    throw error;
+  }
+
+  if (!req.file) {
+    return res.status(200).json({
+      message: "No File Provided!",
+    });
+  }
+
+  if (req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  return res.status(201).json({
+    message: "File stored!",
+    filePath: req.file.path,
+  });
+});
+
+// Adding Middleware to Auth User
+app.use(auth);
+
 // Graphql
 app.use(
   "/graphql",
@@ -66,6 +121,20 @@ app.use(
     schema: graphqlSchema,
     rootValue: grahpqlResolver,
     graphiql: true,
+    customFormatErrorFn(err) {
+      if (!err.originalError) {
+        return err;
+      }
+
+      const data = err.originalError.data;
+      const message = err.message || "An Error Occured!";
+      const code = err.originalError.code || 500;
+      return {
+        message: message,
+        status: code,
+        data: data,
+      };
+    },
   })
 );
 
